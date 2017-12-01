@@ -1,0 +1,122 @@
+<!DOCTYPE HTML>
+<html>
+    <head>
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta.2/css/bootstrap.min.css" integrity="sha384-PsH8R72JQ3SOdhVi3uxftmaW6Vc51MKb0q5P2rRUpPvrszuE4W1povHYgTpBfshb" crossorigin="anonymous">
+        <script src="https://ajax.aspnetcdn.com/ajax/jQuery/jquery-3.2.1.min.js"></script>
+        <script src="/socket.io/socket.io.js"></script>
+        <script src='spectrum.js'></script>
+        <link rel='stylesheet' href='spectrum.css' />
+
+        <style>
+            .box{
+                border: 1px solid black;
+                width: 40px;
+                height: 40px;
+            }
+            .black{
+                background-color:black;
+            }
+        </style>
+    </style>
+    </head>
+    
+    <body>
+        <button id="reload">Reload boxes</button>
+        <h1 class="title">Box drawer</h1>
+        <input type='text' id="hideAfterPaletteSelect"/>
+        <div id="box_container" class="container">
+            <% for(var i=0; i<20; i++){ %>
+                <div class="row" data-row="<%= i %>">
+                <% for(var j=0; j<20; j++) {%>
+                    <div class="box" data-row="<%= i %>" data-col="<%= j %>"></div>
+                <% } %>
+                </div>  
+            <% } %>
+        </div>
+    </body>
+    
+</html>
+
+<script>
+    var current_color = "black";
+
+    var id = "<%= id %>"
+    var load_from_database = function(id){
+        $.ajax({
+            url: "/get-box",
+            type: "POST",
+            data: {id: id},
+            dataType: "json"
+        }).done(function(json){
+            //Now draw
+            for(var i=0; i<json.length; ++i){
+                var coordinate = json[i].coordinate.split(" ");
+                var row = coordinate[0];
+                var col = coordinate[1];
+                $(`.box[data-row="${row}"][data-col="${col}"]`).addClass("black");
+            }
+            console.log(json);
+            
+        });
+    }
+    load_from_database(id);
+
+    //Set button resposne
+    $("#reload").click(function(){
+        //first clear all
+        $(".black").removeClass("black");
+        load_from_database(id);
+    });
+
+    
+    var socket = io();
+    socket.emit("on_connect", id);
+
+    $("#box_container").on("click", ".box", function(){
+        row = $(this).parent().attr("data-row");
+        col = $(this).attr("data-col");
+
+        if ( $(this).hasClass("black") ){
+            $(this).removeClass("black");
+
+            socket.emit('draw_remove', {
+                id: id,
+                coordinate: {row: row, col:col}
+            });
+        }
+        else{
+            $(this).addClass("black");
+
+            socket.emit('draw_add', {
+                id: id,
+                coordinate: {row: row, col:col}
+            });
+        }
+        
+    });
+
+    socket.on('recv_draw', function(data){
+        console.log("RECEIVED DRAW");
+        console.log(data);
+        var box_ele = $(`[data-row="${data.coordinate.row}"][data-col="${data.coordinate.col}"]`);
+        if( box_ele.hasClass("black") ){
+            box_ele.removeClass("black");
+        }
+        else{
+            box_ele.addClass("black");
+        }
+    });
+
+    /*
+    $("#hideAfterPaletteSelect").spectrum({
+    showPaletteOnly: true,
+    showPalette:true,
+    hideAfterPaletteSelect:true,
+    color: 'blanchedalmond',
+    palette: [
+        ['black', 'white', 'blanchedalmond',
+        'rgb(255, 128, 0);', 'hsv 100 70 50'],
+        ['red', 'yellow', 'green', 'blue', 'violet']
+    ]
+    });*/
+</script>
